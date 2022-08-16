@@ -77,7 +77,20 @@ class Crypto():
             print('Passwords do not match.\n')
             return self.passinput(first_time=first_time)
 
+    def check_state(self):
+        import importlib
+        state_mod = importlib.import_module(self.nodelete_folder_name + '.state')
+        return state_mod.state
+    
+    def change_state(self, state):
+        with open(self.nodelete_path + 'state.py', 'w') as f:
+            f.write(f'state = \"{state.encode()}\"\n')
 
+    def check_file_encrpyted(self, filename):
+        if filename[:11] == '[encrypted]':
+            return True
+
+    
     def check_path(self, path=None):
         """
         Checks the path for every requirement.
@@ -115,84 +128,98 @@ class Crypto():
 
             count += 1
 
-        print('What type of encryption / decryption do you want to use?')
+        print('\nWhat type of encryption / decryption do you want to use?')
         print('[1] encrypt / decrypt all')
         print('[2] encrypt / decrypt some and show contents in terminal')
         usrinput = input('> ')
         if usrinput == '1':
-            for i in dir_list:
-                current_file = dir_list[i]
-                if current_file[:11] == '[encrypted]':
-                    current_file = current_file[12:]
-                    pointer_position = current_file.find('].')
-                    encrypted_filename = current_file[:pointer_position]
+            not_crypt_count = 0
 
-                    decrypted_filename = self.decrypt(base64.decode(encrypted_filename), key)
-                    if not decrypted_filename:
-                        raise Exception('Wrong password')
-                    decrypted_filename = decrypted_filename.encode('utf-8')
+            state = self.check_state()
 
-                    with open(path + self.path_seperator + encrypted_filename, 'rb') as f:
-                        encrypted_content = f.read()
-                    
-                    decrypted_content = self.decrypt(encrypted_content, key)
-                    if not decrypted_content:
-                        raise Exception('Wrong password')
-                    decrypted_content = decrypted_content.encode('utf-8')
+            if state == 'various':
+                print('\nAll files are only partially encrypted (according to cached state). Trying to decrypt all nessecary files at first.')
+                # TODO: Implement
+                for i in dir_list:
+                    current_file = dir_list[i]    
+                    if self.check_file_encrypted(current_file):
+                        try:
+                            self.decrypt_file(current_file, path, key)
+                        except Exception as e:
+                            print(e)
+                            return 0
+                print('\nSuccessfully decrypted all files.')
+            
+            if state == 'decrypted':
+                print('\nAll files are decrypted (according to cached state). Trying to encrypt all files.')
+                for i in dir_list:
+                    current_file = dir_list[i]
+                    if self.check_file_encrypted(current_file):
+                        self.change_state('various')
+                        raise Exception('A file is already encrypted, despite internal state was \'decrypted\'. Changed status to \'various\'.')
+                    try:
+                        self.encrypt_file(current_file, path, key)
+                    except Exception as e:
+                        print(e)
+                        return 0
 
-                    with open(path + self.path_seperator + decrypted_filename, 'w') as f:
-                        f.write(decrypted_content)
+            if state == 'encrypted':
+                print('\nAll files are encrypted (according to cached state). Trying to decrypt all files.')
+                for i in dir_list:
+                    current_file = dir_list[i]
+                    # TODO: Implement
+                    # if self.check_file_encrypted(current_file):
 
-                    os.remove(path + self.path_seperator + chosen_file)
                   
-            # TODO: implement
         elif usrinput == '2':
-            pass
-            # TODO: copy functionallity here
+
+            print('\nFunctionality not implemented yet')
+            # TODO: Implement
+            # print('\nwhich file should be decrypted / encrypted?')
+            # keylist = []
+            # for i in dir_list:
+            #     print('[' + str(i) + ']' + ': ' + dir_list[i])
+            #     keylist.append(i)
+            # chosen_file = input('> ')
+
+            # if chosen_file in keylist:
+                
+            #     chosen_file = dir_list[chosen_file]
+            #     if chosen_file[:11] == '[encrypted]':
+            #         chosen_file = chosen_file[12:]
+            #         pointer_position = chosen_file.find('].')
+            #         encrypted_filename = chosen_file[:pointer_position]
+
+            #         decrypted_filename = self.decrypt(encrypted_filename, key)
+            #         if not decrypted_filename:
+            #             raise Exception('Wrong password')
+            #         decrypted_filename = decrypted_filename.encode('utf-8')
+
+            #         with open(path + self.path_seperator + encrypted_filename, 'rb') as f:
+            #             encrypted_content = f.read()
+                    
+            #         decrypted_content = self.decrypt(encrypted_content, key)
+            #         if not decrypted_content:
+            #             raise Exception('Wrong password')
+            #         decrypted_content = decrypted_content.encode('utf-8')
+
+            #         with open(path + self.path_seperator + decrypted_filename, 'w') as f:
+            #             f.write(decrypted_content)
+
+            #         os.remove(path + self.path_seperator + chosen_file)
+            #     else:
+            #         decrypted_filename = chosen_file
+            #         with open(path + self.path_seperator + chosen_file, 'r') as f:
+            #             decrypted_content = f.read()
+                    
+            #         encrypted_filename = self.encrypt(decrypted_filename, key)
+            #         encrypted_content = self.encrypt(decrypted_content, key)
+
         else:
             print('Invalid input.\n')
             self.check_path(path)
 
 
-        print('which file should be decrypted / encrypted?')
-        keylist = []
-        for i in dir_list:
-            print(i + ':' + dir_list[i])
-            keylist.append(i)
-        chosen_file = input('> ')
-
-        if chosen_file in keylist:
-            
-            chosen_file = dir_list[chosen_file]
-            if chosen_file[:11] == '[encrypted]':
-                chosen_file = chosen_file[12:]
-                pointer_position = chosen_file.find('].')
-                encrypted_filename = chosen_file[:pointer_position]
-
-                decrypted_filename = self.decrypt(encrypted_filename, key)
-                if not decrypted_filename:
-                    raise Exception('Wrong password')
-                decrypted_filename = decrypted_filename.encode('utf-8')
-
-                with open(path + self.path_seperator + encrypted_filename, 'rb') as f:
-                    encrypted_content = f.read()
-                
-                decrypted_content = self.decrypt(encrypted_content, key)
-                if not decrypted_content:
-                    raise Exception('Wrong password')
-                decrypted_content = decrypted_content.encode('utf-8')
-
-                with open(path + self.path_seperator + decrypted_filename, 'w') as f:
-                    f.write(decrypted_content)
-
-                os.remove(path + self.path_seperator + chosen_file)
-            else:
-                decrypted_filename = chosen_file
-                with open(path + self.path_seperator + chosen_file, 'r') as f:
-                    decrypted_content = f.read()
-                
-                encrypted_filename = self.encrypt(decrypted_filename, key)
-                encrypted_content = self.encrypt(decrypted_content, key)
 
             
         
@@ -208,7 +235,9 @@ class Crypto():
             f.write('cryptography==37.0.4')
         with open(self.nodelete_path + 'passcheck.txt', 'wb') as f:
             f.write(self.encrypt('test', self.hash_password(self.passinput(first_time=True).encode())))
-        
+        with open(self.nodelete_path + 'state.py', 'w') as f:
+            f.write('state = \"decrypted\"\n')
+
 
 
     def encrypt(self, content_decrypted, key):
@@ -220,6 +249,20 @@ class Crypto():
             return encrypted
         except InvalidToken:
             return False
+    
+    def encrypt_file(self, decrypted_filename, path, key, chosen_file):
+        encrypted_filename = self.encrypt(decrypted_filename, key)
+        if not encrypted_filename:
+            raise Exception(f'An error occured while encrypting the filename \'{decrypted_filename}\'')
+        encrypted_encoded_filename = base64.urlsafe_b64encode(encrypted_filename.decode('utf-8'))
+        with open(path + self.path_seperator + decrypted_filename, 'rb') as f:
+            decrypted_content = f.read()
+        encrypted_content = self.encrypt(decrypted_content, key)
+        if not encrypted_content:
+            raise Exception(f'An error occured while encrypting the content of \'{decrypted_filename}\'')
+        with open(path + self.path_seperator + '[encrypted][' + encrypted_encoded_filename + ']', 'wb') as f:
+            f.write(encrypted_content)
+        os.remove(path + self.path_seperator + decrypted_filename)
 
     def decrypt(self, content_encrypted, key):
         try:
@@ -233,6 +276,31 @@ class Crypto():
         except InvalidToken:
             print("[crypt.crypt.decrypt()                             ] Wrong password")
             return False
+
+    def decrypt_file(self, filename, path, key, chosen_file):
+        encrypted_filename = filename[12:]
+        pointer_position = encrypted_filename.find(']', 13)
+        encrypted_filename = encrypted_filename[:pointer_position]
+
+        decrypted_filename = self.decrypt(base64.urlsafe_b64decode(encrypted_filename), key)
+        if not decrypted_filename:
+            raise Exception('Wrong password')
+        decrypted_filename = decrypted_filename.encode('utf-8')
+
+        with open(path + self.path_seperator + encrypted_filename, 'rb') as f:
+            encrypted_content = f.read()
+        
+        decrypted_content = self.decrypt(encrypted_content, key)
+        if not decrypted_content:
+            raise Exception('Wrong password')
+        decrypted_content = decrypted_content.encode()
+
+        with open(path + self.path_seperator + decrypted_filename, 'w') as f:
+            f.write(decrypted_content)
+
+        os.remove(path + self.path_seperator + filename)
+
+
 
 # from Crypto.Cipher import AES
 # import os
