@@ -15,9 +15,10 @@ class Crypto():
             self.salt_path = '/nodelete/salt'
 
 
-        self.nodelete_folder_name = '.do_not_delete' + self.path_seperator
+        self.nodelete_folder_name = '__do_not_delete__' + self.path_seperator
         self.nodelete_path = self.path + self.path_seperator + self.nodelete_folder_name
         self.salt_path = self.nodelete_path + 'salt'
+        self.ignore = [self.nodelete_folder_name[:-2], 'env', '.git', '.gitignore', 'README.md', 'cryptograph.py', 'test.py', '__do_not_delete__', '__pycache__']
         # if self.check_path():
 
     def check_salt_availability(self, path=None):
@@ -79,14 +80,20 @@ class Crypto():
 
     def check_state(self):
         import importlib
-        state_mod = importlib.import_module(self.nodelete_folder_name + '.state')
+        state_mod = importlib.import_module(self.nodelete_folder_name[:-1] + '.state')
+        
         return state_mod.state
     
     def change_state(self, state):
         with open(self.nodelete_path + 'state.py', 'w') as f:
             f.write(f'state = \"{state.encode()}\"\n')
+    
+    def update_ignore(self):
+        import importlib
+        ignore_mod = importlib.import_module(self.nodelete_folder_name[:-1] + '.ignore')
+        self.ignore = ignore_mod.ignore
 
-    def check_file_encrpyted(self, filename):
+    def check_file_encrypted(self, filename):
         if filename[:11] == '[encrypted]':
             return True
 
@@ -117,13 +124,15 @@ class Crypto():
         if not proceed:
             return 0
 
+        self.update_ignore()
+
         count = 0
 
-        for i in os.listdir():
+        dir_list = {}
 
-            dir_list = {}
+        for i in os.listdir():
             
-            if i[-3:] != '.py':
+            if i[-3:] != '.py' and i not in self.ignore:
                 dir_list.update({count: i})
 
             count += 1
@@ -143,11 +152,11 @@ class Crypto():
                 for i in dir_list:
                     current_file = dir_list[i]    
                     if self.check_file_encrypted(current_file):
-                        try:
+                        # try:
                             self.decrypt_file(current_file, path, key)
-                        except Exception as e:
-                            print(e)
-                            return 0
+                        # except Exception as e:
+                            # print(e)
+                            # return 0
                 print('\nSuccessfully decrypted all files.')
             
             if state == 'decrypted':
@@ -156,12 +165,12 @@ class Crypto():
                     current_file = dir_list[i]
                     if self.check_file_encrypted(current_file):
                         self.change_state('various')
-                        raise Exception('A file is already encrypted, despite internal state was \'decrypted\'. Changed status to \'various\'.')
-                    try:
-                        self.encrypt_file(current_file, path, key)
-                    except Exception as e:
-                        print(e)
-                        return 0
+                        raise Exception('A file is already encrypted, despite internal state was \'decrypted\'. Changed state to \'various\'.')
+                    # try:
+                    self.encrypt_file(current_file, path, key)
+                    # except Exception as e:
+                        # print(e)
+                        # return 0
 
             if state == 'encrypted':
                 print('\nAll files are encrypted (according to cached state). Trying to decrypt all files.')
@@ -237,6 +246,12 @@ class Crypto():
             f.write(self.encrypt('test', self.hash_password(self.passinput(first_time=True).encode())))
         with open(self.nodelete_path + 'state.py', 'w') as f:
             f.write('state = \"decrypted\"\n')
+        ignore_filenames = ''
+        for i in self.ignore:
+            ignore_filenames += '\'' + i + '\', '
+        ignore_filenames = ignore_filenames[:-2]
+        with open(self.nodelete_path + 'ignore.py', 'w') as f:
+            f.write(f'ignore = [{ignore_filenames}]\n')
 
 
 
@@ -244,23 +259,26 @@ class Crypto():
         key = bytes(key)
         f = Fernet(key)
         try:
-            encoded_content_decrypted = content_decrypted.encode() # convert to type bytes
-            encrypted = f.encrypt(encoded_content_decrypted)
+            try:
+                encrypted = f.encrypt(content_decrypted)
+            except TypeError:
+                encrypted = f.encrypt(content_decrypted.encode()) # convert to type bytes
             return encrypted
         except InvalidToken:
             return False
     
-    def encrypt_file(self, decrypted_filename, path, key, chosen_file):
-        encrypted_filename = self.encrypt(decrypted_filename, key)
+    def encrypt_file(self, decrypted_filename, path, key):
+        print(f'Encrypting file {decrypted_filename}...')
+        encrypted_filename = self.encrypt(decrypted_filename.encode(), key)
         if not encrypted_filename:
             raise Exception(f'An error occured while encrypting the filename \'{decrypted_filename}\'')
-        encrypted_encoded_filename = base64.urlsafe_b64encode(encrypted_filename.decode('utf-8'))
+        encrypted_encoded_filename = base64.urlsafe_b64encode(encrypted_filename) # FIXME: potential bug here
         with open(path + self.path_seperator + decrypted_filename, 'rb') as f:
             decrypted_content = f.read()
         encrypted_content = self.encrypt(decrypted_content, key)
         if not encrypted_content:
             raise Exception(f'An error occured while encrypting the content of \'{decrypted_filename}\'')
-        with open(path + self.path_seperator + '[encrypted][' + encrypted_encoded_filename + ']', 'wb') as f:
+        with open(path + self.path_seperator + '[encrypted][' + encrypted_encoded_filename.decode() + ']', 'wb') as f:
             f.write(encrypted_content)
         os.remove(path + self.path_seperator + decrypted_filename)
 
@@ -277,7 +295,7 @@ class Crypto():
             print("[crypt.crypt.decrypt()                             ] Wrong password")
             return False
 
-    def decrypt_file(self, filename, path, key, chosen_file):
+    def decrypt_file(self, filename, path, key):
         encrypted_filename = filename[12:]
         pointer_position = encrypted_filename.find(']', 13)
         encrypted_filename = encrypted_filename[:pointer_position]
