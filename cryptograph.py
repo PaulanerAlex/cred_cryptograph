@@ -100,8 +100,11 @@ class Crypto():
             return True
     
     def ed_all(self, state, dir_list, path, key):
+            if dir_list.__len__() <= 0:
+                print(f'No files to encrypt / decrypt. If your file was ignored, check the ignore list:\n{self.nodelete_path}ignore.py')
+            
             if state == 'various':
-                print('\nAll files are only partially encrypted (according to cached state). Trying to decrypt all nessecary files at first.')
+                print('\nAll files are only partially encrypted (according to cached state). Trying to decrypt all nessecary files at first.\n')
                 # TODO: Implement
                 for i in dir_list:
                     current_file = dir_list[i]    
@@ -121,8 +124,8 @@ class Crypto():
                     encrypt_count = 0
                     for file in dir_list:
                         current_file = dir_list[file]
-                        self.encrypt_file(current_file, path, key)                    
-                        encrypt_count += 1
+                        if self.encrypt_file(current_file, path, key) != False:
+                            encrypt_count += 1
                     print(f'\nEncrypted {str(encrypt_count)} files.')
                     self.change_state('encrypted')
                 elif ed_input.lower() == 'd':
@@ -133,7 +136,7 @@ class Crypto():
                     return
             
             if state == 'decrypted':
-                print('\nAll files are decrypted (according to cached state). Trying to encrypt all files...')
+                print('\nAll files are decrypted (according to cached state). Trying to encrypt all files...\n')
                 encrypt_count = 0
                 for i in dir_list:
                     current_file = dir_list[i]
@@ -142,8 +145,8 @@ class Crypto():
                         print('\nA file is already encrypted, despite internal state was \'decrypted\'. Changed state to \'various\'.')
                         self.ed_all('various', dir_list, path, key)
                         return
-                    self.encrypt_file(current_file, path, key)
-                    encrypt_count += 1
+                    if self.encrypt_file(current_file, path, key) != False:
+                        encrypt_count += 1
 
                 print(f'\nEncrypted {str(encrypt_count)} files.')
                 if encrypt_count != 0:
@@ -151,16 +154,17 @@ class Crypto():
 
 
             if state == 'encrypted':
-                print('\nAll files are encrypted (according to cached state). Trying to decrypt all files.')
+                print('\nAll files are encrypted (according to cached state). Trying to decrypt all files.\n')
+                decrypt_count = 0
                 for i in dir_list:
                     current_file = dir_list[i]
                     # TODO: Implement
-                    if not self.check_file_encrypted(current_file):
-                        self.change_state('various')
-                        print('\nA file is already decrypted, despite internal state was \'encrypted\'. Changed state to \'various\'.')
-                        self.ed_all('various', dir_list, path, key)
-                        return
-                    self.decrypt_file(current_file, path, key)
+                    if self.check_file_encrypted(current_file):
+                        self.decrypt_file(current_file, path, key)
+                        decrypt_count += 1
+                print('\nDecrypted ' + str(decrypt_count) + ' files.')
+                self.change_state('decrypted')
+
 
 
     def check_path(self, path=None):
@@ -197,7 +201,7 @@ class Crypto():
 
         for i in os.listdir():
             
-            if i[-3:] != '.py' and i not in self.ignore:
+            if i[-3:] != '.py' and i not in self.ignore: 
                 dir_list.update({count: i})
 
             count += 1
@@ -303,6 +307,8 @@ class Crypto():
             return False
     
     def encrypt_file(self, decrypted_filename, path, key):
+        if not decrypted_filename.__contains__('.'): # TODO: Change to be able to encrypt folders
+            return False
         print(f'Encrypting file {decrypted_filename}...')
         encrypted_filename = self.encrypt(decrypted_filename.encode(), key)
         if not encrypted_filename:
@@ -324,7 +330,10 @@ class Crypto():
             else:    
                 f = Fernet(key)
                 decrypted = f.decrypt(bytes(content_encrypted))
-                decrypted_decoded = decrypted.decode()
+                try:
+                    decrypted_decoded = decrypted.decode()
+                except UnicodeDecodeError:
+                    decrypted_decoded = decrypted
                 return decrypted_decoded
         except InvalidToken:
             print("[crypt.crypt.decrypt()                             ] Wrong password")
@@ -338,20 +347,25 @@ class Crypto():
         decrypted_filename = self.decrypt(base64.urlsafe_b64decode(encrypted_filename), key)
         if not decrypted_filename:
             raise Exception('Wrong password')
-        decrypted_filename = decrypted_filename.encode('utf-8')
+        decrypted_filename = decrypted_filename
 
         with open(path + self.path_seperator + '[encrypted][' + encrypted_filename  + ']', 'rb') as f:
             encrypted_content = f.read()
         
         decrypted_content = self.decrypt(encrypted_content, key)
-        if not decrypted_content:
+        if not decrypted_content and decrypted_content != '':
             raise Exception('Wrong password')
-        decrypted_content = decrypted_content.encode()
+        try:    
+            decrypted_content = decrypted_content.encode()
+        except AttributeError:
+            pass
 
-        with open(path + self.path_seperator + decrypted_filename, 'w') as f:
+        with open(path + self.path_seperator + decrypted_filename, 'wb') as f:
             f.write(decrypted_content)
 
         os.remove(path + self.path_seperator + filename)
+        
+        print('Decrypted file ' + str(decrypted_filename))
 
 
 
