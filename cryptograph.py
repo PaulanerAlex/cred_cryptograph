@@ -49,7 +49,7 @@ class Crypto():
         pwdhash = binascii.hexlify(pwdhash)
         return base64.urlsafe_b64encode(pwdhash)
 
-    def check_password(self, password=None, key=None, count=0):
+    def check_password(self, key=None):
         """
         only for internal use
         """
@@ -60,10 +60,7 @@ class Crypto():
         if self.decrypt(encrypted_string, key):
             return True
         
-        print('Wrong password.\n')
-        count += 1
-        if count < 3:
-            self.check_password(password=password, key=key, count=count)
+        print('\nWrong password.\n')
         return False
 
 
@@ -336,7 +333,6 @@ class Crypto():
                     decrypted_decoded = decrypted
                 return decrypted_decoded
         except InvalidToken:
-            print("[crypt.crypt.decrypt()                             ] Wrong password")
             return False
 
     def decrypt_file(self, filename, path, key):
