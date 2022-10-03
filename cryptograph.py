@@ -2,6 +2,7 @@ import base64
 import hashlib, binascii, os
 from platform import system
 from cryptography.fernet import Fernet, InvalidToken
+import getpass
 
 class Crypto():
     def __init__(self):
@@ -66,10 +67,10 @@ class Crypto():
 
     def passinput(self, first_time=False):
         print(('\nEnter' if first_time==False else '\nChoose') + ' your password:')
-        password = input('> ')
+        password = getpass.getpass('> ')
         if first_time:
             print('Confirm your password:')
-            password_confirm = input('> ')
+            password_confirm = getpass.getpass('> ')
             if password == password_confirm:
                 return password
             else:
@@ -98,7 +99,7 @@ class Crypto():
     
     def ed_all(self, state, dir_list, path, key):
             if dir_list.__len__() <= 0:
-                print(f'No files to encrypt / decrypt. If your file was ignored, check the ignore list:\n{self.nodelete_path}ignore.py')
+                print(f'\nNo files to encrypt / decrypt. If your file was ignored, check the ignore list:\n{self.nodelete_path}ignore.py')
             
             if state == 'various':
                 print('\nAll files are only partially encrypted (according to cached state). Trying to decrypt all nessecary files at first.\n')
