@@ -19,7 +19,7 @@ class Crypto():
         self.nodelete_path = self.path + self.path_seperator + self.nodelete_folder_name
         self.salt_path = self.nodelete_path + 'salt'
         self.ignore = [self.nodelete_folder_name[:-2], 'env', '.git', '.gitignore', 'README.md', 'cryptograph.py', 'test.py', '__do_not_delete__', '__pycache__']
-        # if self.check_path():
+        self.partially_encrypted = False
 
     def check_salt_availability(self, path=None):
         """
@@ -123,8 +123,15 @@ class Crypto():
                         current_file = dir_list[file]
                         if self.encrypt_file(current_file, path, key) != False:
                             encrypt_count += 1
-                    print(f'\nEncrypted {str(encrypt_count)} files.')
-                    self.change_state('encrypted')
+                    
+                    if not self.partially_encrypted:
+                        print(f'\nEncrypted {str(encrypt_count)} files.')
+                        self.change_state('encrypted')
+                    else:
+                        print(f'\nAn unknown amount of files could not be encrypted (see previous outputs for error output). Processed {str(encrypt_count)} files.')
+                        self.change_state('various')
+                        self.partially_encrypted = False
+       
                 elif ed_input.lower() == 'd':
                     self.change_state('decrypted')
                 else:
@@ -145,9 +152,14 @@ class Crypto():
                     if self.encrypt_file(current_file, path, key) != False:
                         encrypt_count += 1
 
-                print(f'\nEncrypted {str(encrypt_count)} files.')
-                if encrypt_count != 0:
-                    self.change_state('encrypted')
+                if not self.partially_encrypted:
+                    print(f'\nEncrypted {str(encrypt_count)} files.')
+                    if encrypt_count != 0:
+                        self.change_state('encrypted')
+                else:
+                    print(f'\nAn unknown amount of files could not be encrypted (see previous outputs for error output). Processed {str(encrypt_count)} files.')
+                    self.change_state('various')
+                    self.partially_encrypted = False
 
 
             if state == 'encrypted':
@@ -304,21 +316,25 @@ class Crypto():
             return False
     
     def encrypt_file(self, decrypted_filename, path, key):
-        if not decrypted_filename.__contains__('.'): # TODO: Change to be able to encrypt folders
-            return False
-        print(f'Encrypting file {decrypted_filename}...')
-        encrypted_filename = self.encrypt(decrypted_filename.encode(), key)
-        if not encrypted_filename:
-            raise Exception(f'An error occured while encrypting the filename \'{decrypted_filename}\'')
-        encrypted_encoded_filename = base64.urlsafe_b64encode(encrypted_filename) # FIXME: potential bug here
-        with open(path + self.path_seperator + decrypted_filename, 'rb') as f:
-            decrypted_content = f.read()
-        encrypted_content = self.encrypt(decrypted_content, key)
-        if not encrypted_content:
-            raise Exception(f'An error occured while encrypting the content of \'{decrypted_filename}\'')
-        with open(path + self.path_seperator + '[encrypted][' + encrypted_encoded_filename.decode() + ']', 'wb') as f:
-            f.write(encrypted_content)
-        os.remove(path + self.path_seperator + decrypted_filename)
+        try:
+            if not decrypted_filename.__contains__('.'): # TODO: Change to be able to encrypt folders
+                return False
+            print(f'Encrypting file {decrypted_filename}...')
+            encrypted_filename = self.encrypt(decrypted_filename.encode(), key)
+            if not encrypted_filename:
+                raise Exception(f'An error occured while encrypting the filename \'{decrypted_filename}\'')
+            encrypted_encoded_filename = base64.urlsafe_b64encode(encrypted_filename) # FIXME: potential bug here
+            with open(path + self.path_seperator + decrypted_filename, 'rb') as f:
+                decrypted_content = f.read()
+            encrypted_content = self.encrypt(decrypted_content, key)
+            if not encrypted_content:
+                raise Exception(f'An error occured while encrypting the content of \'{decrypted_filename}\'')
+            with open(path + self.path_seperator + '[encrypted][' + encrypted_encoded_filename.decode() + ']', 'wb') as f:
+                f.write(encrypted_content)
+            os.remove(path + self.path_seperator + decrypted_filename)
+        except OSError as e:
+            print(f'Due to an error, the file \'{decrypted_filename}\' could not be encrypted. Exception Output: {str(e)}')
+            self.partially_encrypted = True
 
     def decrypt(self, content_encrypted, key):
         try:
